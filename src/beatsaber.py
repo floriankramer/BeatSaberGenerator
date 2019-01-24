@@ -111,10 +111,10 @@ class BeatObstacle():
     return tmp
 
 class Difficulty(Enum):
-  EASY = 'easy'
-  NORMAL = 'normal'
-  HARD = 'hard'
-  EXPERT = 'expert'
+  EASY = 'Easy'
+  NORMAL = 'Normal'
+  HARD = 'Hard'
+  EXPERT = 'Expert'
 
 _DIFFICULTY_RANKS = {
   Difficulty.EASY.value : 1,

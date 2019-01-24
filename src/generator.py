@@ -5,7 +5,7 @@ import math
 
 _EASY_RAND_VALUES= {
   'col' : [(0.05, 0), (0.5, 1), (0.95, 2), (1, 3)],
-  'row' : [(0.1, 0), (0.9, 1), (1, 2)],
+  'row' : [(0.7, 0), (0.9, 1), (1, 2)],
   'bomb' : 0.00,
   'inversion' : 0.07,
   'dir_break' : 0,
@@ -14,12 +14,13 @@ _EASY_RAND_VALUES= {
   'tb_vertical' : 0.4,
   'tb_v_dir_up' : 0.5,
   'tb_h_dir_left' : 0.5,
-  'target_beat' : 50
+  'target_beat' : 65,
+  'min_headheight_dist' : 5
 }
 
 _NORMAL_RAND_VALUES = {
   'col' : [(0.1, 0), (0.5, 1), (0.9, 2), (1, 3)],
-  'row' : [(0.15, 0), (0.85, 1), (1, 2)],
+  'row' : [(0.55, 0), (0.85, 1), (1, 2)],
   'bomb' : 0.05,
   'inversion' : 0.07,
   'dir_break' : 0.1,
@@ -28,12 +29,13 @@ _NORMAL_RAND_VALUES = {
   'tb_vertical' : 0.4,
   'tb_v_dir_up' : 0.5,
   'tb_h_dir_left' : 0.5,
-  'target_beat' : 60
+  'target_beat' : 75,
+  'min_headheight_dist' : 3
 }
 
 _HARD_RAND_VALUES = {
   'col' : [(0.15, 0), (0.5, 1), (0.85, 2), (1, 3)],
-  'row' : [(0.2, 0), (0.8, 1), (1, 2)],
+  'row' : [(0.4, 0), (0.8, 1), (1, 2)],
   'bomb' : 0.07,
   'inversion' : 0.1,
   'dir_break' : 0.15,
@@ -42,12 +44,13 @@ _HARD_RAND_VALUES = {
   'tb_vertical' : 0.4,
   'tb_v_dir_up' : 0.5,
   'tb_h_dir_left' : 0.5,
-  'target_beat' : 70
+  'target_beat' : 85,
+  'min_headheight_dist' : 2
 }
 
 _EXPERT_RAND_VALUES = {
   'col' : [(0.25, 0), (0.5, 1), (0.75, 2), (1, 3)],
-  'row' : [(0.3, 0), (0.7, 1), (1, 2)],
+  'row' : [(0.1, 0), (0.7, 1), (1, 2)],
   'bomb' : 0.15,
   'inversion' : 0.3,
   'dir_break' : 0.15,
@@ -56,7 +59,8 @@ _EXPERT_RAND_VALUES = {
   'tb_vertical' : 0.4,
   'tb_v_dir_up' : 0.5,
   'tb_h_dir_left' : 0.5,
-  'target_beat' : 80
+  'target_beat' : 95,
+  'min_headheight_dist' : 1
 }
 
 _DIFFICULTIES = [
@@ -66,8 +70,10 @@ _DIFFICULTIES = [
   (beatsaber.Difficulty.EXPERT, _EXPERT_RAND_VALUES)
 ]
 
+# allow all directions for the two central columns in the bottom and center row
+# Only allow outward directions in all other fields
 _DIRECTIONS = [
-  [[6], [1], [1], [7]],
+  [[6], [0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8], [7]],
   [[2], [0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8], [3]],
   [[4], [0], [0], [5]]
 ]
@@ -94,6 +100,8 @@ class BasicGenerator():
     song.song_name = inp.name
     song.beats_per_minute = inp.bpm
 
+    time_to_beats = inp.bpm / 60 
+
     for difficulty, probabilities in _DIFFICULTIES:
       level = song.add_difficulty_level(difficulty)
       level.beats_per_minute = song.beats_per_minute
@@ -111,34 +119,48 @@ class BasicGenerator():
       prob_tb_h_dir_left = probabilities['tb_h_dir_left']
 
       target_beat = probabilities['target_beat']
+      min_headheight_dist= probabilities['min_headheight_dist']
+
       prob_create_note = min(1, target_beat / level.beats_per_minute)
 
       # Generate the notes
       rand = random.Random()
-      pos = float(inp.beats[0])
+      # wait at least five seconds or until the first beat was detected
+      pos = min(5, float(inp.beats[0]))
       step = 60 / level.beats_per_minute 
       # we remember the last type and direction to avoid akward sweeps most
       # of the time.
       # when the same color appears twice
       last_type = None 
       last_direction = None 
+      last_block_headheight = -50
       while pos < inp.length:
         if rand.random() > prob_create_note:
           last_type = None
           pos += step
           continue
 
-        # choose a random position
-        col_r = rand.random()
-        row_r = rand.random()
-        for p, i in prob_col:
-          if col_r < p:
-            col = i
+        # convert the timestamp to beats
+        t = pos * time_to_beats
+
+        # choose a random position, avoid crowding
+        # the headspace in row 1
+        while True: 
+          col_r = rand.random()
+          row_r = rand.random()
+          for p, i in prob_col:
+            if col_r < p:
+              col = i
+              break
+          for p, i in prob_row:
+            if row_r < p:
+              row= i
+              break
+          if pos - last_block_headheight > min_headheight_dist or not ((col == 1 or col == 2) and row == 1):
             break
-        for p, i in prob_row:
-          if row_r < p:
-            row= i
-            break
+        if (col == 1 or col == 2) and row == 1:
+          last_block_headheight = pos
+
 
         # Determine the color based upon the position (red left blue right).
         # Invert with a certain probability
@@ -182,27 +204,27 @@ class BasicGenerator():
                 ndir = beatsaber.CutDirection.RIGHT
           else:
             # avoid uncuttable combinations
-            if vertical and ndir.value == 0 or ndir.value == 1:
+            if vertical and (ndir.value == 0 or ndir.value == 1):
               if rand.random()  < prob_tb_h_dir_left:
                 ndir = beatsaber.CutDirection.LEFT
               else:
                 ndir = beatsaber.CutDirection.RIGHT
-            elif vertical and ndir.value == 2 or ndir.value == 3:
+            elif not vertical and (ndir.value == 2 or ndir.value == 3):
               if rand.random() < prob_tb_v_dir_up: 
                 ndir = beatsaber.CutDirection.UP
               else:
                 ndir = beatsaber.CutDirection.DOWN
           if vertical:
             nrow = row - 1 if row > 0 else row + 1
-            level.add_note(nrow, col, ntype, ndir, pos)
-            level.add_note(row, col, type, ndir, pos)
+            level.add_note(nrow, col, ntype, ndir, t)
+            level.add_note(row, col, type, ndir, t)
           else:
             ncol = col - 1 if col > 0 else col + 1
-            level.add_note(row, ncol, ntype, ndir, pos)
-            level.add_note(row, col, type, ndir, pos)
+            level.add_note(row, ncol, ntype, ndir, t)
+            level.add_note(row, col, type, ndir, t)
         else:
           # add the node
-          level.add_note(row, col, type, direction, pos)
+          level.add_note(row, col, type, direction, t)
 
         pos += step
     return song
