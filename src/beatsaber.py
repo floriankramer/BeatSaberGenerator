@@ -1,12 +1,23 @@
 from enum import Enum
 import os
 import shutil
+import json
 
 class BeatObjectType(Enum):
   RED = 0
   BLUE = 1
   BOMB = 3
 
+def invert_color(t):
+  if t == BeatObjectType.RED:
+    return BeatObjectType.BLUE
+  elif t == BeatObjectType.BLUE:
+    return BeatObjectType.RED
+  return t
+
+class BeatObstacleType(Enum):
+  WALL = 0
+  CEILING = 1
 
 class CutDirection(Enum):
   UP = 0
@@ -19,6 +30,24 @@ class CutDirection(Enum):
   DOWN_RIGHT = 7
   ANY = 8
 
+def invert_direction(d):
+  if  d == CutDirection.UP:
+    return CutDirection.DOWN
+  elif  d == CutDirection.DOWN:
+    return CutDirection.UP
+  elif  d == CutDirection.LEFT:
+    return CutDirection.RIGHT
+  elif  d == CutDirection.RIGHT:
+    return CutDirection.LEFT
+  elif  d == CutDirection.UP_LEFT:
+    return CutDirection.DOWN_RIGHT
+  elif  d == CutDirection.UP_RIGHT:
+    return CutDirection.DOWN_LEFT
+  elif  d == CutDirection.DOWN_LEFT:
+    return CutDirection.UP_RIGHT
+  elif  d == CutDirection.DOWN_RIGHT:
+    return CutDirection.UP_LEFT
+  return CutDirection.ANY
 
 class BeatObject:
   def __init__(self):
@@ -56,6 +85,31 @@ class BeatObject:
     tmp['_time'] = self._time
     return tmp
 
+class BeatObstacle():
+  def __init__(self):
+    """
+    _time : The time at which the object will pass the player
+    _column: The column of the 3 x 4 grid
+    _row: The row of the 3 x 4 grid
+    """
+    self._type = BeatObstacleType.WALL 
+    self._time = 0.0
+    self._column = 0
+    self._width = 1
+    self._duration = 1
+
+  def to_json(self):
+    return json.dumps(self.to_jsonable())
+
+  def to_jsonable(self):
+    tmp = {}
+    tmp['_lineIndex'] = self._column
+    tmp['_type'] = self._type.value
+    tmp['_duration'] = self._duration
+    tmp['_time'] = self._time
+    tmp['_width'] = self._width
+    return tmp
+
 class Difficulty(Enum):
   EASY = 'easy'
   NORMAL = 'normal'
@@ -79,6 +133,7 @@ class DifficultyLevel():
     self.shuffle_period = 0.2
     self.events = []
     self.notes = []
+    self.obstacles = []
 
   def to_jsonable(self):
     tmp = {}
@@ -94,6 +149,10 @@ class DifficultyLevel():
     for note in self.notes:
       l.append(note.to_jsonable())
     tmp['_notes'] = l
+    l = []
+    for obstacle in self.obstacles:
+      l.append(obstacle.to_jsonable())
+    tmp['_obstacles'] = l
     return tmp
 
   def to_json(self):
@@ -108,13 +167,22 @@ class DifficultyLevel():
       cut_direction(CutDirection): The cut direction (use any for a bomb)
       time(float): the timestamp at which the object should pass the player
     """
-    n = Note()
+    n = BeatObject()
     n._row = row
-    n._col = col
+    n._column = col
     n._type = type
     n._cut_direction = cut_direction
-    n.time = time
+    n._time = time
     self.notes.append(n)
+
+  def add_obstacle(self, col, type, width, time, duration):
+    o = BeatObstacle()
+    o._column = col
+    o._type = type
+    o._width = width
+    o._time = time
+    o._duration = duration
+    self.obstacles.append(o)
 
 
 class Song:
@@ -162,7 +230,7 @@ class Song:
     self.difficulty_levels = {}
     
   def add_difficulty_level(self, difficulty):
-    if not difficulty in difficulty_levels.keys():
+    if not difficulty in self.difficulty_levels.keys():
       self.difficulty_levels[difficulty] = DifficultyLevel() 
     return self.difficulty_levels[difficulty]
 
@@ -183,8 +251,8 @@ class Song:
     with open(tmp_info_path, 'w') as f:
       print(self.to_json(), file=f)
 
-    for difficulty, level in self.difficulty_levels:
-      tmp_level_path = os.path.join(dest, difficulty.value)
+    for difficulty, level in self.difficulty_levels.items():
+      tmp_level_path = os.path.join(dest, difficulty.value + '.json')
       with open(tmp_level_path, 'w') as f:
         print(level.to_json(), file=f)
 
@@ -192,9 +260,9 @@ class Song:
     audio_path = 'audio.ogg'
     cover_image_path = 'cover.jpg'
     if self.input_path is not None:
-      audio_path = os.basename(self.input_path)
+      audio_path = os.path.basename(self.input_path)
     if self.cover_path is not None:
-      cover_image_path = os.basename(self.cover_path)
+      cover_image_path = os.path.basename(self.cover_path)
     tmp = {}
     tmp['songName'] = self.song_name
     tmp['songSubName'] = self.song_sub_name
@@ -205,7 +273,7 @@ class Song:
     tmp['coverImagePath'] = cover_image_path
     tmp['environmentName'] = audio_path 
     l = []
-    for difficulty, level in self.difficulty_levels:
+    for difficulty, level in self.difficulty_levels.items():
       tmp2 = {}
       tmp2['difficulty'] = difficulty.value
       tmp2['difficultyRank'] = _DIFFICULTY_RANKS[difficulty.value] 
@@ -213,6 +281,7 @@ class Song:
       tmp2['jsonPath'] = difficulty.value + '.json'
       tmp2['offset'] = 0
       tmp2['oldOffset'] = 0
+      l.append(tmp2)
     tmp['difficultyLevels'] = l
     return tmp
 

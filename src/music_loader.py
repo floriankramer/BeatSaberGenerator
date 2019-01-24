@@ -1,6 +1,6 @@
 import essentia
 import essentia.standard
-import essentia.streaming
+# import essentia.streaming
 import os
 
 class Song():
@@ -10,6 +10,7 @@ class Song():
     self.artist = 'unknown'
     self.composer = 'unknown'
     self.bpm = 60
+    self.length = 0
     self.beats = None
 
 class MusicLoader():
@@ -28,9 +29,11 @@ class MusicLoader():
     beatTracker = essentia.standard.BeatTrackerMultiFeature()
     beatTracker(audio)
     beats = beatTracker(audio)
+    song.length = len(audio) / 44100.0
     song.beats = beats[0]
     song.bpm = 0.0
     for i in range(1, len(song.beats)):
       song.bpm += song.beats[i] - song.beats[i - 1]
     song.bpm /= len(song.beats)
+    song.bpm = 60 / song.bpm
     return song
