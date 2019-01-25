@@ -29,7 +29,7 @@ def parse_settings():
       ]
   optlist, args = getopt.getopt(sys.argv[1:], 'i:c:', longopts)
   if len(args) != 1:
-    print('Wrong number of arguments. Expected one but got ' + len(args))
+    print('Wrong number of arguments. Expected one but got ' + str(len(args)))
     print_usage()
     sys.exit(1)
   s.output_file = args[0]
