@@ -159,6 +159,8 @@ class BasicGenerator():
     song = beatsaber.Song() 
     song.input_path = inp.input_file
     song.song_name = inp.name
+    song.song_sub_name = inp.album
+    song.song_author_name = inp.artist
     song.beats_per_minute = inp.bpm
 
     time_to_beats = inp.bpm / 60 
