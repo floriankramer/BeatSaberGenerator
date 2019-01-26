@@ -1,8 +1,13 @@
 import essentia
 import essentia.standard
 import taglib 
+from enum import Enum
 # import essentia.streaming
 import os
+
+class DataType(Enum):
+  BEAT = 0
+
 
 class Song():
   def __init__(self):
@@ -11,7 +16,7 @@ class Song():
     self.artist = 'unknown'
     self.composer = 'unknown'
     self.album = 'unknown'
-    self.bpm = 60
+    self.bpm = None 
     self.length = 0
     self.beats = None
 
@@ -21,7 +26,7 @@ class MusicLoader():
     pass
 
   @staticmethod
-  def load(path):
+  def load(path, required_data):
     song = Song()
     song.input_file = path
     song.name = os.path.basename(path)[:-4]
@@ -39,14 +44,18 @@ class MusicLoader():
 
     loader = essentia.standard.MonoLoader(filename=path)
     audio = loader()
-    beatTracker = essentia.standard.BeatTrackerMultiFeature()
-    beatTracker(audio)
-    beats = beatTracker(audio)
-    song.length = len(audio) / 44100.0
-    song.beats = beats[0]
-    song.bpm = 0.0
-    for i in range(1, len(song.beats)):
-      song.bpm += song.beats[i] - song.beats[i - 1]
-    song.bpm /= len(song.beats)
-    song.bpm = 60 / song.bpm
+    for t in required_data:
+      if t == DataType.BEAT:
+        beatTracker = essentia.standard.BeatTrackerMultiFeature()
+        beats = beatTracker(audio)
+        song.length = len(audio) / 44100.0
+        song.beats = beats[0]
+        song.bpm = 60 / ((song.beats[-1] - song.beats[0]) / len(song.beats))
     return song
+
+
+def compute_segments(path):
+    loader = essentia.standard.MonoLoader(filename=path)
+    audio = loader()
+
+  
